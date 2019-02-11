@@ -148,7 +148,7 @@ object BloopSpec {
 case class BloopSpec(org: String, name: String, version: String)
 
 case class Compilation(
-    graph: Map[ModuleRef, List[ModuleRef]],
+    graph: Map[ModuleRef, Set[ModuleRef]],
     checkouts: Set[Checkout],
     artifacts: Map[ModuleRef, Artifact],
     universe: Universe) {
@@ -171,7 +171,7 @@ case class Compilation(
               },
               artifact.params,
               artifact.intransitive,
-              graph(ref).map(hash(_))).digest[Md5]
+              graph(ref).toList.sorted.map(hash(_))).digest[Md5]
         }
     )
   }
@@ -371,16 +371,21 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
     Universe(entities ++ that.entities)
 
   @tailrec
-  final def addToMap[A, B](l: Map[A, Set[B]], r: Traversable[(A, B)]): Map[A, Set[B]] =
+  final def addToMap[A](l: Map[A, Set[A]], r: Traversable[(A, A)]): Map[A, Set[A]] =
     r match {
-      case List()               => l
-      case (key, value) :: tail => addToMap(l.updated(key, l.getOrElse(key, Set()) + value), tail)
+      case List() => l
+      case (key, value) :: tail =>
+        addToMap(
+            l.updated(key, l.getOrElse(key, Set()) + value)
+              .updated(value, l.getOrElse(value, Set())),
+            tail)
     }
 
   def getDependencyGraph(ref: ModuleRef): Try[DirectedGraph[ModuleRef]] = {
     def getGraphHelper(
         graph: DirectedGraph[ModuleRef],
-        queue: List[ModuleRef]
+        queue: List[ModuleRef],
+        visited: Set[ModuleRef]
       ): Try[DirectedGraph[ModuleRef]] =
       queue match {
         case List() => ~graph
@@ -390,13 +395,15 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
             module             <- entity.project(ref.moduleId)
             deps               = module.after ++ module.compilerDependencies
             newConnections     = addToMap(graph.connections, deps.toList.map(x => (ref, x)))
-            vertices           = graph.connections.keys.toList
             newGraph           = DirectedGraph(newConnections)
-            notVisitedVertices = deps.diff(vertices.toSet)
-            ans                <- getGraphHelper(newGraph, tail ++ notVisitedVertices)
+            notVisitedVertices = deps.diff(visited)
+            ans <- getGraphHelper(
+                      newGraph,
+                      tail ++ notVisitedVertices,
+                      visited ++ notVisitedVertices)
           } yield ans
       }
-    getGraphHelper(DirectedGraph(Map()), List(ref))
+    getGraphHelper(DirectedGraph(Map()), List(ref), Set())
   }
 
   private[this] def dependencies(io: Io, ref: ModuleRef, layout: Layout): Try[Set[ModuleRef]] =
@@ -412,15 +419,8 @@ case class Universe(entities: Map[ProjectId, Entity] = Map()) {
 
   def compilation(io: Io, ref: ModuleRef, layout: Layout): Try[Compilation] =
     for {
-      art <- artifact(io, ref, layout)
-      graph <- dependencies(io, ref, layout)
-                .map(_.map(artifact(io, _, layout)).map { a =>
-                  a.map { a =>
-                    (a.ref, a.dependencies ++ a.compiler.map(_.ref.hide))
-                  }
-                }.sequence
-                  .map(_.toMap.updated(art.ref, art.dependencies ++ art.compiler.map(_.ref.hide))))
-                .flatten
+      art   <- artifact(io, ref, layout)
+      graph <- getDependencyGraph(ref).map(_.connections)
       artifacts <- graph.keys.map { key =>
                     artifact(io, key, layout).map(key -> _)
                   }.sequence.map(_.toMap)
