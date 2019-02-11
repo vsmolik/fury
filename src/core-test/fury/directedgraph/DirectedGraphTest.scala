@@ -25,7 +25,7 @@ import scala.language.implicitConversions
 object DirectedGraphTest extends TestApp {
 
   override def tests(): Unit = {
-    test("Gra    ph with no edges has no cycles") {
+    test("Graph with no edges has no cycles") {
       DirectedGraph[Int](Map(1 -> Set()))
     }.assert(!_.hasCycle(1))
 
