@@ -39,4 +39,4 @@ RUN /testshell.sh bash " && "
 RUN /testshell.sh zsh  " && "
 RUN /testshell.sh fish  " ; and "
 
-ADD test /test
+ADD test /build/test

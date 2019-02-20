@@ -183,6 +183,7 @@ object BuildCli {
       optProject   <- ~optProjectId.flatMap(schema.projects.findBy(_).toOption)
       cli          <- cli.hint(ModuleArg, optProject.to[List].flatMap(_.modules))
       cli          <- cli.hint(WatchArg)
+      cli          <- cli.hint(ReporterArg, Reporter.all)
       cli <- cli
               .hint(DebugArg, optProject.to[List].flatMap(_.modules).filter(_.kind == Application))
       invoc   <- cli.read()
@@ -211,14 +212,9 @@ object BuildCli {
                    multiplexer.closeAll()
                    compRes
                  }
-      _ <- ~Graph.live(
-              changed = false,
-              io,
-              compilation.allDependenciesGraph.mapValues(_.to[Set]),
-              multiplexer.stream(50, Some(Tick)),
-              Map())(config.theme)
-      t1 <- Success(System.currentTimeMillis - t0)
-      _  <- ~io.println(s"Total time: ${if (t1 >= 10000) s"${t1 / 1000}s" else s"${t1}ms"}\n")
+      _ <- ~invoc(ReporterArg).toOption
+            .getOrElse(GraphReporter)
+            .report(io, compilation, config.theme, multiplexer, System.currentTimeMillis)
     } yield io.await(Await.result(future, duration.Duration.Inf).success)
   }
 
