@@ -141,7 +141,10 @@ schemas	default	id	default
 								hidden	false
 						params	
 						sources	src/core	src/core
-						binaries	
+						binaries	io.methvin:directory-watcher:0.9.3	binRepo	central
+								group	io.methvin
+								artifact	directory-watcher
+								version	0.9.3
 						resources	
 						bloopSpec	None
 					dependency	id	dependency

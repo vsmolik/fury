@@ -204,8 +204,9 @@ object BuildCli {
       debugStr    <- ~invoc(DebugArg).toOption
       multiplexer <- ~(new Multiplexer[ModuleRef, CompileEvent](
                         compilation.artifacts.map(_._1).to[List]))
+      watch <- ~invoc(WatchArg).toOption.isDefined
       future <- ~compilation
-                 .compile(io, module.ref(project), multiplexer, Map(), layout)
+                 .compile(io, module.ref(project), multiplexer, Map(), layout, watch)
                  .apply(module.ref(project))
                  .map { compRes =>
                    multiplexer.closeAll()
