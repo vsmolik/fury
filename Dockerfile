@@ -38,5 +38,4 @@ ADD etc/testshell.sh /testshell.sh
 RUN /testshell.sh bash " && "
 RUN /testshell.sh zsh  " && "
 RUN /testshell.sh fish  " ; and "
-
-ADD test /build/test
+ADD test /home/bash_user/test
